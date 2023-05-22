@@ -138,6 +138,191 @@ for(game in 1:306){
   }
 }
 
+############################################################### Calcular pontos finais para todas as iterações ###############################################################
+#1 iteração = 1 campeonato
+points_team_new<-array(0,c(18,n,3)) #matrizes de pontos finais
+points_array<-array(0,c(18,34,n,3)) #matrizes de pontos ganhos (resultados ao longo do campeonato)
+
+for(chain in 1:3){
+  for(iter in 1:n){
+    for(team in 1:18){
+      for(game in 1:306){
+        if(team == vict_home[game,iter,chain] || team == vict_away[game,iter,chain]){
+          points_team_new[team,iter,chain] <- points_team_new[team,iter,chain] + 3
+          points_array[team,liga14_20$Jornada[game],iter,chain] <- 3
+          } else if(team == ties_home[game,iter,chain] || team == ties_away[game,iter,chain]){
+            points_team_new[team,iter,chain] <- points_team_new[team,iter,chain] + 1
+            points_array[team,liga14_20$Jornada[game],iter,chain] <- 1
+          }
+      }
+    }
+  }
+}
+
+################################################################### GOLOS MARCADOS POR JORNADA E POR EQUIPA ###################################################################
+goals_array<-array(0,c(18,34,n)) #matriz de golos marcados para cada jornada
+goals_acum<-array(0,c(18,34,n)) #mtriz de golos acumulados no fim de cada jornada
+
+for(iter in 1:n){
+  for(team in 1:18){
+    for(game in 1:306){
+      if(team ==  liga14_20$h_g[game]){
+        goals_array[team,liga14_20$Jornada[game],iter] <- goals_array[team,liga14_20$Jornada[game],iter] + y.pred1[game,iter,1]
+      } else if(team ==  liga14_20$a_g[game]){
+        goals_array[team,liga14_20$Jornada[game],iter] <- goals_array[team,liga14_20$Jornada[game],iter] + y.pred2[game,iter,1]
+      }
+    }
+    goals_acum[team,,iter]<-cumsum(goals_array[team,,iter])
+  }
+}
+
+############################################################### CALCULA OS PONTOS ACUMULADOS AO FIM DE CADA JORNADA ###########################################################
+#CALCULA OS PONTOS ACUMULADOS AO FIM DE CADA JORNADA
+acum_points<-array(0,c(18,34,n,3))
+
+for(chain in 1:3){
+  for(iter in 1:n){
+    for(jornada in 1:34){
+      for(team in 1:18){
+        acum_points[team,,iter,chain]<-cumsum(points_array[team,,iter,chain])
+      } 
+    }
+  }
+}
+
+#da um peso aos goolos marcados, para no caso de empate de pontos numa jornada a equipa com mais golos marcados aparece acima na tabela
+pontos_peso2<-acum_points[,,,1]+0.0001*goals_acum[,,] 
+
+############################################################### CALCULA OS PONTOS ACUMULADOS POR ORDEM DECRESCENTE ###########################################################
+#APENAS PARA A CADEIA 1
+order_cumsum<-array(0,c(18,34,n))
+
+for(iter in 1:n){
+  for(jornada in 1:34){
+    filler<-c() #para permitir reoordenar os valores usando sort passo para um vector
+    filler<-c(pontos_peso2[,jornada,iter])
+      
+    order_cumsum[,jornada,iter]<-sort(filler,decreasing=TRUE)
+  }
+}
+
+
+#################################################################### RANKING NA TABELA PARA CADA JORNADA ####################################################################
+placements_during<-array(0,c(18,34,n))
+
+for(iter in 1:n){
+  for (jornada in 1:34){
+    for (team in 1:18){
+      placements_during[team,jornada,iter]<-which(pontos_peso2[team,jornada,iter]==order_cumsum[,jornada,iter])[1]
+      #para cada valor da matriz dos pontos totais vai ver a posicao onde o valor é igual na matriz dos pontos ordenados,
+      #retorna a primeira posiçao(caso haja empate de pontos) na linha da equipa
+    }
+  }
+}
+
+##################################### GRÁFICOS DE PROBABILIDADE DE TERMINAR NOS 3 PRIMEIROS E 2 ULTIMOS LUGARES (Figura 6.9) ###############################################
+tab_counts<-matrix(0,18,1) #Tabela de contagem de ocorrência
+
+for(iter in 1:n){
+  for(team in 1:18){
+    if(placements_during[team,34,iter] <= 3){ # >= 17 para os relegados
+      tab_counts[team]<-tab_counts[team]+1
+    }
+  }
+}
+
+df_gg<-data.frame(lista_equipas,tab_counts/5000 * 100)
+colnames(df_gg)<-c("equipa","perc")
+
+#Ordenar as equipas por ordem decrescente
+df_gg$equipa = factor(df_gg$equipa, levels=c(df_gg[order(df_gg$perc,decreasing=FALSE),][,1])) 
+
+ggplot(data=df_gg, aes(x=equipa,y=perc))+geom_bar(stat = "identity",fill="red",col="black")  +  scale_y_continuous(labels = function(x) paste0(x, "%"))+ coord_flip() +
+       geom_text(aes(label = paste0(round(perc,digits=1),"%")),hjust=-0.01) + labs(x="Equipa", y="Percentagem")
+       
+       
+       
+       
+       
+####################################################################### GOLOS MARCADOS E SOFRIDOS #######################################################################
+#Matrizes de golos marcados e sofridos previstos para cada iteração (1 cadeia)
+
+scored_prev<-matrix(0,18,n)
+conceded_prev<-matrix(0,18,n)
+
+for(iter in 1:n){
+  for(team in 1:18){
+    for(game in 1:306){
+      if(team == liga14_20$h_g[game]){
+         scored_prev[team,iter]<-scored_prev[team,iter]+y.pred1[game,iter,1]
+         conceded_prev[team,iter]<-conceded_prev[team,iter]+y.pred2[game,iter,1]
+        }
+      if(team == liga14_20$a_g[game]){
+        scored_prev[team,iter]<-scored_prev[team,iter]+y.pred2[game,iter,1]
+        conceded_prev[team,iter]<-conceded_prev[team,iter]+y.pred1[game,iter,1]
+      }
+    }
+  }  
+} 
+
+#Golos marcacos e sofridos observados
+scored_obs<-matrix(0,18,1)    #golos marcados observados
+conceded_obs<-matrix(0,18,1)  #golos sofridos observados
+
+for(team in 1:18){
+  for(game in 1:306){
+    if(team == liga14_20$h_g[game]){
+      scored_obs[team]<-scored_obs[team] + liga14_20$y_g1[game]
+      conceded_obs[team]<-conceded_obs[team] + liga14_20$y_g2[game]
+    }
+    if(team == liga14_20$a_g[game]){
+      scored_obs[team]<-scored_obs[team] + liga14_20$y_g2[game]
+      conceded_obs[team]<-conceded_obs[team] + liga14_20$y_g1[game]
+    }
+  }
+}  
+
+############################################## GRÁFICO DE GOLOS OBSERVADOS E QUANTIS DE 95% PARA OS PREVISTOS (FIGURA 6.5) #################################################
+
+med_scored<-matrix(0,18,1) #Mediana dos golos marcados previstos
+med_conceded<-matrix(0,18,1) #Mediana dos golos sofridos previstos
+quantis_scored<-matrix(0,18,2) #Quantis de 5% e 95% para os golos marcados
+quantis_conceded<-matrix(0,18,2) #Quantis de 5% e 95% para os golos sofridos
+
+for(team in 1:18){
+  med_scored[team]<-median(scored_prev[team,])
+  quantis_scored[team,]<-unname(quantile(scored_prev[team,],c(0.05,0.95)))
+  med_conceded[team]<-median(conceded_prev[team,])
+  quantis_conceded[team,]<-unname(quantile(conceded_prev[team,],c(0.05,0.95)))
+}
+
+
+data2<-data.frame(scored_obs,lista_equipas)
+colnames(data2)<-c("Golos","Equipas")
+
+nova_ordem<-data2[order(data2$Golos,decreasing=FALSE),][,2]
+
+#ordenar por ordem crescente de golos observados
+data2$Equipas = factor(data2$Equipas, levels=c(nova_ordem))
+
+
+data1<-data.frame(med_scored,quantis_scored,lista_equipas)
+colnames(data1)<-c("Golos","Infe","Sup","Equipas")
+data1$Equipas = factor(data1$Equipas, levels=c(nova_ordem)) 
+
+tema <- theme(
+  plot.title = element_text(hjust = 0.5, family = "open", size = (15), face = "bold", colour = "steelblue4"),
+  legend.title = element_text(colour = "steelblue", face = "bold", family = "open"),
+  axis.title = element_text(family = "open", size = (12), colour = "steelblue4", face = "bold"),
+  axis.text = element_text(family = "open", colour = "black", size = (10))
+)
+
+#Plot golos marcados previstos(quantis) e golos marcados observados
+ggplot(NULL, aes(x = Equipas, y = Golos)) + geom_linerange(data = data1, aes(ymin = Infe, ymax = Sup), size = 1, col = "blue") +
+  geom_pointrange(data = data1, mapping = aes(x = Equipas,y=Golos, ymin = Infe, ymax = Sup), size = 0.7, col = "blue", shape = 22, fill = "blue")+
+  geom_point(data=data2,col="yellow",size=3) + scale_x_discrete(guide = guide_axis(angle = 45)) + scale_y_continuous(limits = c(0, 120), breaks = seq(0, 120, 20)) +
+  labs(x="Equipa",y="Golos marcados")+ggtitle("Golos observados e quantis de 95% para golos previstos, por equipa") + tema
+  
 ############################################################################################################################################################################
 #Usado para calcular as probabilidades de vitoria, derrota e empate (trabalhar com cadeia 1)
 
@@ -155,6 +340,8 @@ for(game in 1:306){
   prob_vict_fora[game]<-sum(pred.diff[game,] < 0)/n
   prob_empate[game]<-sum(pred.diff[game,] == 0)/n
 }
+
+
 
 #DE FINETTI SCORE / BRIER SCORE
 brier_score <- sum( (prob_vict_casa - liga14_20$Vitoria_casa)^2 + (prob_vict_fora - liga14_20$Vitoria_fora)^2 + (prob_empate - liga14_20$Empate)^2 )/nrow(prob_vict_casa)
