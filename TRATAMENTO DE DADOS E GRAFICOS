@@ -1,3 +1,9 @@
+library(reshape2)
+library(ggplot2)
+library(tidyr)
+library(plyr)
+library(tidyverse)
+
 #############################################################################################################################################################################
 ################################# GRÁFICO PARA COMPARAR GOLOS MARCADOS EM CASA E FORA COM OS ESPERADOS PARA UMA DISTRIBUIÇÃO POISSON (FIGURA 2.1) ###########################
 
