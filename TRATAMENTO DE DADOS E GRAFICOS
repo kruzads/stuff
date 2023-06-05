@@ -3,6 +3,7 @@ library(ggplot2)
 library(tidyr)
 library(plyr)
 library(tidyverse)
+library(MCMCvis)
 
 #############################################################################################################################################################################
 ################################# GRÁFICO PARA COMPARAR GOLOS MARCADOS EM CASA E FORA COM OS ESPERADOS PARA UMA DISTRIBUIÇÃO POISSON (FIGURA 2.1) ###########################
@@ -106,14 +107,15 @@ library(bayesplot)
 data2<-t(y.pred1[,2000:2500,1]-y.pred2[,2000:2500,1])
 
 color_scheme_set("brightblue")
-ppc_dens_overlay(liga14_20$y_g1-liga14_20$y_g2, data2) + yaxis_text()+
-  labs(x="Diferença de golos",y="Dens. Preditiva Posteriori") + tema
+#GRÁFICOS DE BARRAS PARA AS FREQUENCIAS RELATIVAS DAS DIFERENÇAS DE GOLOS E RESULTADOS
+ppc_bars(liga14_20$y_g1 - liga14_20$y_g2, data2, freq = FALSE) +  yaxis_text() + scale_y_continuous(breaks = seq(0, 1, 0.05), expand = c(0, 0), limits = c(0, 0.31)) +
+  scale_x_continuous(breaks = seq(-15,15, 1),limits = c(-8, 8)) + labs(x = "Diferença de golos", y = "Dens. Preditiva Posteriori") + tema
 
-tema <- theme(legend.title = element_text(colour = "steelblue", face = "bold", family = "open"), legend.text = element_text(colour = "black", family = "open", size = (12)),
-              axis.title = element_text(family = "open", size = (12), colour = "steelblue4", face = "bold"), axis.text = element_text(family = "open", colour = "black", 
-              size = (10),), legend.position = c(0.9, 0.8),legend.key.size = unit(0.7, 'cm'))
+tema <- theme(legend.title = element_text(colour = "steelblue", face = "bold", family = "open"),
+              axis.title = element_text(family = "open", size = (15), colour = "steelblue4", face = "bold"),
+              axis.text = element_text(family = "open", colour = "black", size = (15),), legend.position = c(0.9, 0.8),legend.key.size = unit(1, 'cm'))
 
-
+#############################################################################################################################################################################
 ############################################################################# TRATAMENTO DE DADOS ###########################################################################
 ########################################################### VERIFICAR RESULTADOS PARA TODAS AS ITERAÇÕES DE CADA JOGO #######################################################
   
