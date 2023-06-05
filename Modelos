@@ -15,89 +15,128 @@ liga14_20<-liga14_20[1:306,]
 # O MODELO É DEFINIDO AQUI DENTRO
 futebolCode <- nimbleCode({
   
-  # LIKELIHOOD AND RANDOM EFFECT MODEL FOR THE SCORING PROPENSITY (COMUM A TODOS OS MODELOS DE GOLOS)
+  # VEROSIMILHANÇA E MODELO DOS EFEITOS ALEATÓRIOS PARA A PROPENSIDADE DE MARCAÇÃO DE GOLOS
   for (g in 1:ngames) {
-    # Observed number of goals scored by each team
+    # GOLOS MARCADOS OBSERVADOS PARA AS EQUIPAS DE CASA E FORA NO JOGO G
     y1[g] ~ dpois(theta[g,1])
     y2[g] ~ dpois(theta[g,2])
-    # Average Scoring intensities (accounting for mixing components)
-    log(theta[g,1]) <-  home + att[hometeam[g]] + def[awayteam[g]] #golos marcados pela equipa de casa
-    log(theta[g,2]) <-  att[awayteam[g]] + def[hometeam[g]]        #golos marcados pela equipa de fora
-  }
+    # INTENSIDADE DE MARCAÇÃO MÉDIAS (TEM EM CONTA A MISTURA DE COMPONENTES)
+    log(theta[g,1]) <-  home + att[hometeam[g]] + def[awayteam[g]] 
+    log(theta[g,2]) <-  att[awayteam[g]] + def[hometeam[g]]        
+}
 
   
-# 1. BASIC MODEL FOR THE HYPERPARAMETERS (ESPECIFICO AO MODELO DE POISSON)
-# prior on the home effect
-home ~ dnorm(0,0.0001)
-# Trick to code the ''sum-to-zero'' constraint
-for (t in 1:nteams){
-  att.star[t] ~ dnorm(mu.att,tau.att)
-  def.star[t] ~ dnorm(mu.def,tau.def)
-  att[t] <- att.star[t] - mean(att.star[1:nteams])
-  def[t] <- def.star[t] - mean(def.star[1:nteams])
-}
+  # 1. BASIC MODEL FOR THE HYPERPARAMETERS (ESPECIFICO AO MODELO DE POISSON)
+  # DISTRIBUIÇÃO A PRIORI PARA O EFEITO HOME
+  home ~ dnorm(0,0.0001)
+  # RESTRIÇÃO SOMA ZERO
+  for (t in 1:nteams){
+    att.star[t] ~ dnorm(mu.att,tau.att)
+    def.star[t] ~ dnorm(mu.def,tau.def)
+    att[t] <- att.star[t] - mean(att.star[1:nteams])
+    def[t] <- def.star[t] - mean(def.star[1:nteams])
+  }
 
-# priors on the random effects
-mu.att ~ dnorm(0,0.001)
-mu.def ~ dnorm(0,0.001)
-tau.att ~ dgamma(0.01,0.01)
-tau.def ~ dgamma(0.01,0.01)
+  # DISTRIBUIÇÕES A PRIORI PARA OS EFEITOS ALEATÓRIOS
+  mu.att ~ dnorm(0,0.001)
+  mu.def ~ dnorm(0,0.001)
+  tau.att ~ dgamma(0.01,0.01)
+  tau.def ~ dgamma(0.01,0.01)
 
 })
 
-
-# 2. MIXTURE MODEL FOR THE HYPERPARAMETERS (ESPECIFICO AO MODELO DE MISTURA DE PARÂMETROS)
-# prior on the home effect
-home ~ dnorm(0,0.0001)
-# Mixture parameters & components (''sum-to-zero'' constraint)
-for (t in 1:nteams){
-  grp.att[t] ~ dcat(p.att[t,1:3])
-  grp.def[t] ~ dcat(p.def[t,1:3])
-  att[t] ~ dt(mu.att[grp.att[t]],tau.att[grp.att[t]],4)
-  def[t] ~ dt(mu.def[grp.def[t]],tau.def[grp.def[t]],4)
-  att.star[t] <- att[t] - mean(att[1:nteams])
-  def.star[t] <- def[t] - mean(def[1:nteams])
-  # Priors on the mixture parameter (team specific)
-  p.att[t,1:3] ~ ddirch(prior.att[t,1:3])
-  p.def[t,1:3] ~ ddirch(prior.def[t,1:3])
-}
-# Priors on the random effects
-# group 1: bottom-table teams
-mu.att[1] ~ T(dnorm(0,0.001),-3,0)
-mu.def[1] ~ T(dnorm(0,0.001),0,3)
-tau.att[1] ~ dgamma(0.01,0.01)
-tau.def[1] ~ dgamma(0.01,0.01)
-# group 2: mid-table teams
-mu.att[2] <-0
-mu.def[2] <-0
-tau.att[2] ~ dgamma(0.01,0.01)
-tau.def[2] ~ dgamma(0.01,0.01)
-# group 3: top-table teams
-mu.att[3] ~ T(dnorm(0,0.001),0,3)
-mu.def[3] ~ T(dnorm(0,0.001),-3,0)
-tau.att[3] ~ dgamma(0.01,0.01)
-tau.def[3] ~ dgamma(0.01,0.01)
-})
 
 #CONSTANTES DO MODELO (Nº JOGOS, Nº EQUIPAS, LOCALIZAÇÃO DOS INDICES E TEMPORADA)
 futebolConsts <- list(ngames = 306, nteams = 18, hometeam=liga14_20$h_g, awayteam=liga14_20$a_g, season=liga14_20$Temporada)
 
-#DADOS DOS GOLOS MARCADOS
+#DADOS DOS GOLOS MARCADOS OBSERVADOS
 futebolData <- list(y1 = liga14_20$y_g1, y2=liga14_20$y_g2)
 
-
-
-#VALORES INICIAIS PARA OS PARÂMETROS DO MODELO DE POISSON (1 CADEIA)
+#VALORES INICIAIS PARA OS PARÂMETROS (1 CADEIA)
 # futebolInits <- list(home = 0, mu.att = 0, mu.def = 0, tau.att = 1, tau.def = 1, theta = matrix(1,306,2), att.star = rep(1,18), def.star = rep(1,18))
 
-
-#VALORES INICIAIS PARA OS PARÂMETROS DO MODELO DE POISSON (3 CADEIAS COM VALORES INICIAIS DIFERENTES)
+#VALORES INICIAIS PARA OS PARÂMETROS (3 CADEIAS COM VALORES INICIAIS DIFERENTES)
 futebolInits <- list(list(home = 0, mu.att = 0, mu.def = 0, tau.att = 1, tau.def = 1, theta = matrix(1,306,2), att.star = rep(1,18), def.star = rep(1,18)),
                 list(home = -0.9, mu.att = -0.6, mu.def = -0.6, tau.att = 0.6, tau.def = 0.6, theta = matrix(2,306,2), att.star = rep(0,18), def.star = rep(0,18)),
                 list(home = 1, mu.att = 1, mu.def = 1, tau.att = 0.001, tau.def = 0.001, theta = matrix(5,306,2), att.star = rep(0.4,18), def.star = rep(0.4,18)))
 
+#PARÂMETROS PARA GUARDAR NA MATRIZ
+futebolMonitor <- c("theta","att","home","def")  #POISSON
 
-#VALORES INICIAIS PARA OS PARÂMETROS DO MODELO DE MISTURA DOS HYPERPARÂMETROS (3 CADEIAS COM VALORES INICIAIS DIFERENTES) 
+start.time <- Sys.time() 
+
+#EXECUTA O MCMC
+nimbleMCMC_fut <- nimbleMCMC(code = futebolCode, constants = futebolConsts, inits= futebolInits,data = futebolData, monitors = futebolMonitor, niter = 100000, 
+                             nburnin = 50000, thin=10, nchains=3, samplesAsCodaMCMC=TRUE, WAIC = TRUE)
+                             
+end.time <- Sys.time()
+
+# CALCULA O TEMPO DE EXECUÇÃO DE EXECUÇÃO DO MCMC
+time.taken <- end.time - start.time
+time.taken          
+
+#############################################################################################################################################################################
+############################################################### MODELO DE MISTURA DOS HIPERPARÂMETROS #######################################################################
+
+futebolCode <- nimbleCode({
+  
+  # VEROSIMILHANÇA E MODELO DOS EFEITOS ALEATÓRIOS PARA A PROPENSIDADE DE MARCAÇÃO DE GOLOS
+  for (g in 1:ngames) {
+    y1[g] ~ dpois(theta[g,1])
+    y2[g] ~ dpois(theta[g,2])
+    # Average Scoring intensities (accounting for mixing components)
+    log(theta[g,1]) <-  home + att[hometeam[g]] + def[awayteam[g]] 
+    log(theta[g,2]) <-  att[awayteam[g]] + def[hometeam[g]]        
+  }
+
+  # DISTRIBUIÇÃO A PRIORI PARA O EFEITO HOME
+  home ~ dnorm(0,0.0001)
+  
+  # PARÂMETROS DE MISTURA E COMPONENTES (RESTRIÇÃO SOMA ZERO) 
+  for (t in 1:nteams){
+    grp.att[t] ~ dcat(p.att[t,1:3])
+    grp.def[t] ~ dcat(p.def[t,1:3])
+    att[t] ~ dt(mu.att[grp.att[t]],tau.att[grp.att[t]],4)
+    def[t] ~ dt(mu.def[grp.def[t]],tau.def[grp.def[t]],4)
+    att.star[t] <- att[t] - mean(att[1:nteams])
+    def.star[t] <- def[t] - mean(def[1:nteams])
+    
+    # DISTRIBUIÇÕES A PRIORI PARA O PARÂMETRO DE MISTURA (ESPECIFICO PARA CADA EQUIPA)
+    p.att[t,1:3] ~ ddirch(prior.att[t,1:3])
+    p.def[t,1:3] ~ ddirch(prior.def[t,1:3])
+  }
+  
+  # DISTRIBUIÇÕES A PRIORI PARA OS EFEITOS ALEATÓRIOS
+  # GRUPO 1: EQUIPAS PIORES CLASSIFICADAS
+  mu.att[1] ~ T(dnorm(0,0.001),-3,0)
+  mu.def[1] ~ T(dnorm(0,0.001),0,3)
+  tau.att[1] ~ dgamma(0.01,0.01)
+  tau.def[1] ~ dgamma(0.01,0.01)
+  
+  # GRUPO 2: EQUIPAS DE MEIO DA TABELA
+  mu.att[2] <-0
+  mu.def[2] <-0
+  tau.att[2] ~ dgamma(0.01,0.01)
+  tau.def[2] ~ dgamma(0.01,0.01)
+  
+  # GRUPO 3: MELHORES EQUIPAS
+  mu.att[3] ~ T(dnorm(0,0.001),0,3)
+  mu.def[3] ~ T(dnorm(0,0.001),-3,0)
+  tau.att[3] ~ dgamma(0.01,0.01)
+  tau.def[3] ~ dgamma(0.01,0.01)
+})
+
+futebolConsts <- list(ngames = 306, nteams = 18, hometeam=liga14_20$h_g, awayteam=liga14_20$a_g, season=liga14_20$Temporada)
+
+futebolData <- list(y1 = liga14_20$y_g1, y2=liga14_20$y_g2)
+
+
+#1 CADEIA
+futebolInits <- list(home = 0 , mu.att = rep(0,3), mu.def = rep(0,3), tau.att = rep(1,3), tau.def = rep(1,3), theta = matrix(1,306,2), 
+                     p.att = matrix(1/3,18,3), p.def = matrix(1/3,18,3), grp.att = rep(1,18), grp.def = rep(1,18), att = rep(1,18), def = rep(1,18),
+                     prior.att = matrix(1/3,18,3), prior.def = matrix(1/3,18,3))
+
+#3 CADEIAS
 futebolInits <- list(list(home = 0 , mu.att = rep(0,3), mu.def = rep(0,3), tau.att = rep(1,3), tau.def = rep(1,3), theta = matrix(1,306,2),
                           p.att = matrix(1/3,18,3), p.def = matrix(1/3,18,3), grp.att = rep(1,18), grp.def = rep(1,18), att = rep(1,18), def = rep(1,18), 
                           prior.att = matrix(1/3,18,3), prior.def = matrix(1/3,18,3)),
@@ -108,44 +147,31 @@ futebolInits <- list(list(home = 0 , mu.att = rep(0,3), mu.def = rep(0,3), tau.a
                           p.att = matrix(1/3,18,3), p.def = matrix(1/3,18,3), grp.att = rep(3,18), grp.def = rep(3,18), att = rep(0.4,18), def = rep(0.4,18),
                           prior.att = matrix(1,18,3), prior.def = matrix(1,18,3)))
 
+futebolMonitor <- c("theta","att","home","def","grp.att","grp.def") 
 
-futebolInits <- list(home = 0 , mu.att = rep(0,3), mu.def = rep(0,3), tau.att = rep(1,3), tau.def = rep(1,3),
-                     theta = matrix(1,306,2), p.att = matrix(1/3,18,3), p.def = matrix(1/3,18,3),
-                     grp.att = rep(1,18), grp.def = rep(1,18), att = rep(1,18), def = rep(1,18),
-                     prior.att = matrix(1/3,18,3), prior.def = matrix(1/3,18,3))
-
-
-#PARÂMETROS PARA GUARDAR
-futebolMonitor <- c("theta","att","home","def")  #POISSON
-futebolMonitor <- c("theta","att","home","def","grp.att","grp.def") #MISTURA
-
-#EXECUTA O MCMC
 nimbleMCMC_fut <- nimbleMCMC(code = futebolCode, constants = futebolConsts, inits= futebolInits,data = futebolData, monitors = futebolMonitor, niter = 100000, 
                              nburnin = 50000, thin=10, nchains=3, samplesAsCodaMCMC=TRUE, WAIC = TRUE)
-                             
-                             
+
 #############################################################################################################################################################################
 ######################################################################## MODELO MULTINOMIAL #################################################################################
-                             
 
 futebolCode_m <- nimbleCode({
   
   for(g in 1:ngames){
     y[g,1:3] ~ dmulti(theta[g,1:3], 1)
-
+    
+    # PROBABILIDADE DO RESULTADO K (VITORIA CASA, VITORIA FORA, EMPATE) PARA O JOGO G
     for(k in 1:3){
-      theta[g,k] <- phi[g,k] / sum(phi[g,1:3]) #probabilidade do resultado k(vitoria casa/fora/empate) para o jogo g
+      theta[g,k] <- phi[g,k] / sum(phi[g,1:3]) 
     }
 
-    log(phi[g,1]) <- home + att[hometeam[g]] + def[awayteam[g]] #resultado ser vitoria casa
-    log(phi[g,2]) <- att[awayteam[g]] + def[hometeam[g]]        #resultado ser vitoria fora
-    phi[g,3] ~ dunif(0.001,10)                                  #resultado ser empatE
+    log(phi[g,1]) <- home + att[hometeam[g]] + def[awayteam[g]] #RESULTADO SER VITORIA CASA
+    log(phi[g,2]) <- att[awayteam[g]] + def[hometeam[g]]        #RESULTADO SER VITORIA FORA
+    phi[g,3] ~ dunif(0.001,10)                                  #RESULTADO SER EMPATE
   }
- 
-  # 1. BASIC MODEL FOR THE HYPERPARAMETERS
-  # prior on the home effect
+
   home ~ dnorm(0,0.0001)
-  # Trick to code the ''sum-to-zero'' constraint
+  
   for (t in 1:nteams){
     att.star[t] ~ dnorm(mu.att,tau.att)
     def.star[t] ~ dnorm(mu.def,tau.def)
@@ -153,7 +179,6 @@ futebolCode_m <- nimbleCode({
     def[t] <- def.star[t] - mean(def.star[1:nteams])
   }
 
-  # priors on the random effects
   mu.att ~ dnorm(0,0.001)
   mu.def ~ dnorm(0,0.001)
   tau.att ~ dgamma(0.01,0.01)
@@ -161,36 +186,30 @@ futebolCode_m <- nimbleCode({
 })
 
 
-#dados do índice para a equipa de fora e da casa e o número de golos marcado por cada
+
 futebolConsts_m <- list(ngames = 306, nteams = 18, hometeam = liga14_20$h_g, awayteam = liga14_20$a_g)
+
+# VARIÁVEIS DUMMY QUE INDICAM SE O RESULTADO OCORREU OU NÃO NO JOGO G
 futebolData_m <- list(y=as.matrix(cbind(liga14_20$Vitoria_casa,liga14_20$Vitoria_fora,liga14_20$Empate)))
 
+# 1 CADEIA
 futebolInits_m <- list(home = 0, mu.att = 0, mu.def = 0, tau.att = 1, tau.def = 1, phi=matrix(1/3,306,3), att.star = rep(1,18), def.star = rep(1,18))
 
-
+# 3 CADEIAS
 futebolInits_m <- list(list(home = 0, mu.att = 0, mu.def = 0, tau.att = 1, tau.def = 1, phi=matrix(1/3,306,3), att.star = rep(1,18), def.star = rep(1,18)),
                        list(home = -2, mu.att = 1, mu.def = 1, tau.att = 3, tau.def = 3, phi=matrix(1/2,306,3), att.star = rep(0.2,18), def.star = rep(0.2,18)),
                        list(home = 10, mu.att = 2, mu.def = 2, tau.att = 0.3, tau.def = 0.3, phi=matrix(1/4,306,3), att.star = rep(4,18), def.star = rep(4,18)))
 
 futebolMonitor_m <- c("theta","phi","home","att","def")
 
-
-start.time <- Sys.time() 
-
 nimbleMCMC_fut_m <- nimbleMCMC(code = futebolCode_m, constants = futebolConsts_m, inits= futebolInits_m, data = futebolData_m, monitors = futebolMonitor_m, 
                                niter = 100000, nburnin = 50000, nchains = 3, thin = 10, samplesAsCodaMCMC = TRUE, WAIC = TRUE)
-
-end.time <- Sys.time()
-
-#CALCULA O TEMPO DE EXECUÇÃO DE EXECUÇÃO DO MCMC
-time.taken <- end.time - start.time
-time.taken
 
 #############################################################################################################################################################################
 ################################################################# MODELO POISSON INFLACIONADA DE ZEROS ######################################################################
     
 
-#DEFINE A DISTRIBUIÇÃO PARA PODER SER USADA
+#DEFINE A DISTRIBUIÇÃO POISSON INFLACIONADA DE ZEROS PARA PODER SER USADA
 dZIP <- nimbleFunction(
   run = function(x = integer(), lambda = double(0), zeroProb = double(), log = logical(0, default = 0)) {
     returnType(double())
