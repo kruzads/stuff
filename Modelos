@@ -9,13 +9,13 @@ library(readxl)                         #LÊ O FICHEIRO EXCEL
 lista_equipas <- c("Académica","Arouca","Belenenses","Benfica","Boavista","Braga","Estoril","FC Porto", "Gil Vicente","Marítimo","Moreirense","Nacional","Paços Ferreira",
                    "Penafiel","Rio Ave", "Sporting","Vitória FC","Vitória SC")
 
-# DADOS (SÓ SE USA A 1ª TEMPORADA)
+#DADOS (SÓ SE USA A 1ª TEMPORADA)
 liga14_20<-liga14_20[1:306,]
 
-# O MODELO É DEFINIDO AQUI DENTRO
+#O MODELO É DEFINIDO AQUI DENTRO
 futebolCode <- nimbleCode({
   
-  # VEROSIMILHANÇA E MODELO DOS EFEITOS ALEATÓRIOS PARA A PROPENSIDADE DE MARCAÇÃO DE GOLOS
+  #VEROSIMILHANÇA E MODELO DOS EFEITOS ALEATÓRIOS PARA A PROPENSIDADE DE MARCAÇÃO DE GOLOS
   for (g in 1:ngames) {
     # DISTRIBUIÇÃO ATRIBUÍDA AOS GOLOS MARCADOS OBSERVADOS PARA AS EQUIPAS DE CASA E FORA NO JOGO G - POISSON
     y1[g] ~ dpois(theta[g,1])
@@ -25,9 +25,9 @@ futebolCode <- nimbleCode({
     log(theta[g,2]) <-  att[awayteam[g]] + def[hometeam[g]]        
 }
 
-  # DISTRIBUIÇÃO A PRIORI PARA O EFEITO HOME
+  #DISTRIBUIÇÃO A PRIORI PARA O EFEITO HOME
   home ~ dnorm(0,0.0001)
-  # RESTRIÇÃO SOMA ZERO
+  #RESTRIÇÃO SOMA ZERO
   for (t in 1:nteams){
     att.star[t] ~ dnorm(mu.att,tau.att)
     def.star[t] ~ dnorm(mu.def,tau.def)
@@ -35,13 +35,13 @@ futebolCode <- nimbleCode({
     def[t] <- def.star[t] - mean(def.star[1:nteams])
   }
 
-  # DISTRIBUIÇÕES A PRIORI PARA OS EFEITOS ALEATÓRIOS
+  #DISTRIBUIÇÕES A PRIORI PARA OS EFEITOS ALEATÓRIOS
   mu.att ~ dnorm(0,0.001)
   mu.def ~ dnorm(0,0.001)
   tau.att ~ dgamma(0.01,0.01)
   tau.def ~ dgamma(0.01,0.01)
 
-}) # FIM DO MODELO
+}) #FIM DO MODELO
 
 
 #CONSTANTES DO MODELO (Nº JOGOS, Nº EQUIPAS, LOCALIZAÇÃO DOS INDICES E TEMPORADA)
@@ -59,15 +59,15 @@ futebolInits <- list(list(home = 0, mu.att = 0, mu.def = 0, tau.att = 1, tau.def
                 list(home = 1, mu.att = 1, mu.def = 1, tau.att = 0.001, tau.def = 0.001, theta = matrix(5,306,2), att.star = rep(0.4,18), def.star = rep(0.4,18)))
 
 #PARÂMETROS PARA GUARDAR NA MATRIZ
-futebolMonitor <- c("theta","att","home","def")  #POISSON
+futebolMonitor <- c("theta","att","home","def")  
 
-start.time <- Sys.time() 
+start.time <- Sys.time() #INÍCIO DO CONTADOR
 
 #EXECUTA O MCMC
 nimbleMCMC_fut <- nimbleMCMC(code = futebolCode, constants = futebolConsts, inits= futebolInits,data = futebolData, monitors = futebolMonitor, niter = 100000, 
                              nburnin = 50000, thin=10, nchains=3, samplesAsCodaMCMC=TRUE, WAIC = TRUE)
                              
-end.time <- Sys.time()
+end.time <- Sys.time() #FIM DO CONTADOR
 
 # CALCULA O TEMPO DE EXECUÇÃO DE EXECUÇÃO DO MCMC
 time.taken <- end.time - start.time
