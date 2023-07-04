@@ -1,8 +1,8 @@
 
 #PACOTES EM USO
-library(nimble, warn.conflicts = FALSE)
-library(MCMCvis)
-library(readxl)
+library(nimble, warn.conflicts = FALSE) #PACOTE NIMBLE PARA EXECUTAR OS MODELOS
+library(MCMCvis)                        #DESENHAR GRÁFICOS COM OS DADOS PROVENIENTES DO MCMC
+library(readxl)                         #LÊ O FICHEIRO EXCEL
 
 
 #EQUIPAS PARTICIPANTES NA TEMPORADA 2014-2015
