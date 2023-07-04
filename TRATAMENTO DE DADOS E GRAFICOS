@@ -1,9 +1,25 @@
-library(reshape2)
+library(nimble, warn.conflicts = FALSE)
 library(ggplot2)
+library(reshape2)
+library(gridExtra)
 library(tidyr)
-library(plyr)
-library(tidyverse)
 library(MCMCvis)
+library(BayesFactor)
+library(bayestestR)
+library(plyr)
+library(readxl)
+library(tidyverse)
+library(randomcoloR)
+library(doParallel)
+library(parallel)
+library(ggrepel)
+library(sysfonts)
+library(showtext)
+
+
+
+#Estes exemplos são apenas para o modelo de Poisson Dupla
+
 
 #############################################################################################################################################################################
 ################################# GRÁFICO PARA COMPARAR GOLOS MARCADOS EM CASA E FORA COM OS ESPERADOS PARA UMA DISTRIBUIÇÃO POISSON (FIGURA 2.1) ###########################
@@ -55,7 +71,7 @@ MCMCtrace(nimbleMCMC_fut$samples, params = c('home',"att[1]","def[1]"), ISB = FA
 MCMCsummary(nimbleMCMC_fut$samples, params = c("home","att[4]","def[4]","att[9]","def[9]","att[13]","def[13]"), round=4, ISB = FALSE, exact = TRUE)
 
 #############################################################################################################################################################################
-####################################### INTERVALOS DE 95% DE CREDIBILIDADE DE CAUDAS IGUAIS PARA OS PARÂMETROS ATT E DEF (FIGURA 6.3) #######################################
+####################################### INTERVALOS DE 95% DE CREDIBILIDADE DE CAUDAS IGUAIS PARA OS PARÂMETROS ATT E DEF (FIGURA 6.4) #######################################
 
 index<-1:18
 lista_equipas <- c("Académica","Arouca","Belenenses","Benfica","Boavista","Braga","Estoril","FC Porto", "Gil Vicente","Marítimo","Moreirense","Nacional",
@@ -70,8 +86,7 @@ MCMCplot(nimbleMCMC_fut$samples, params = 'def', labels = paste(index,": ",lista
 
 #############################################################################################################################################################################
 ############################################################################  DISTRIBUIÇÃO PREDITIVA ########################################################################
-         
-         
+       
 #PARA MULTIPLAS CADEIAS
 
 n<-dim(nimbleMCMC_fut[[1]]$chain1)[1] #igual numero de valores simulados para todas as cadeias, 5000 neste caso
@@ -84,7 +99,7 @@ y.pred2.chain1<-matrix(0,306,n)
 y.pred2.chain2<-matrix(0,306,n)
 y.pred2.chain3<-matrix(0,306,n)
 
-set.seed(1)
+set.seed(1) #FIXA A SEMENTE PARA OBTER SEMPRE OS MESMOS VALORES
 for(game in 1:306){
   y.pred1.chain1[game,]<-rpois(n,nimbleMCMC_fut[[1]]$chain1[, paste("theta[",game,", 1]", sep="")])
   y.pred1.chain2[game,]<-rpois(n,nimbleMCMC_fut[[1]]$chain2[, paste("theta[",game,", 1]", sep="")])
@@ -140,6 +155,28 @@ for(game in 1:306){
   }
 }
 
+#contadores de resultados para cada temporada simulada
+wins_tab<-matrix(0,18,n)
+ties_tab<-matrix(0,18,n)
+losses_tab<-matrix(34,18,n)
+
+for(game in 1:306){
+  for(iter in 1:n){
+    for(team in 1:18){
+      if(vict_home[game,iter,1]==team || vict_away[game,iter,1]==team){
+        wins_tab[team,iter]<- wins_tab[team,iter]+1
+      }
+      if(ties_home[game,iter,1]==team || ties_away[game,iter,1]==team){
+        ties_tab[team,iter]<-ties_tab[team,iter]+1
+      }
+    }
+  }
+}
+
+losses_tab<-losses_tab-wins_tab-ties_tab
+
+
+##############################################################################################################################################################################
 ############################################################### Calcular pontos finais para todas as iterações ###############################################################
 #1 iteração = 1 campeonato
 points_team_new<-array(0,c(18,n,3)) #matrizes de pontos finais
@@ -161,6 +198,7 @@ for(chain in 1:3){
   }
 }
 
+###############################################################################################################################################################################
 ################################################################### GOLOS MARCADOS POR JORNADA E POR EQUIPA ###################################################################
 goals_array<-array(0,c(18,34,n)) #matriz de golos marcados para cada jornada
 goals_acum<-array(0,c(18,34,n)) #mtriz de golos acumulados no fim de cada jornada
@@ -178,6 +216,8 @@ for(iter in 1:n){
   }
 }
 
+
+###############################################################################################################################################################################
 ############################################################### CALCULA OS PONTOS ACUMULADOS AO FIM DE CADA JORNADA ###########################################################
 #CALCULA OS PONTOS ACUMULADOS AO FIM DE CADA JORNADA
 acum_points<-array(0,c(18,34,n,3))
@@ -195,6 +235,8 @@ for(chain in 1:3){
 #da um peso aos goolos marcados, para no caso de empate de pontos numa jornada a equipa com mais golos marcados aparece acima na tabela
 pontos_peso2<-acum_points[,,,1]+0.0001*goals_acum[,,] 
 
+
+##############################################################################################################################################################################
 ############################################################### CALCULA OS PONTOS ACUMULADOS POR ORDEM DECRESCENTE ###########################################################
 #APENAS PARA A CADEIA 1
 order_cumsum<-array(0,c(18,34,n))
@@ -209,6 +251,7 @@ for(iter in 1:n){
 }
 
 
+#############################################################################################################################################################################
 #################################################################### RANKING NA TABELA PARA CADA JORNADA ####################################################################
 placements_during<-array(0,c(18,34,n))
 
@@ -222,6 +265,8 @@ for(iter in 1:n){
   }
 }
 
+
+############################################################################################################################################################################
 ##################################### GRÁFICOS DE PROBABILIDADE DE TERMINAR NOS 3 PRIMEIROS E 2 ULTIMOS LUGARES (Figura 6.9) ###############################################
 tab_counts<-matrix(0,18,1) #Tabela de contagem de ocorrência
 
@@ -243,9 +288,8 @@ ggplot(data=df_gg, aes(x=equipa,y=perc))+geom_bar(stat = "identity",fill="red",c
        geom_text(aes(label = paste0(round(perc,digits=1),"%")),hjust=-0.01) + labs(x="Equipa", y="Percentagem")
        
        
-       
-       
-       
+
+#########################################################################################################################################################################             
 ####################################################################### GOLOS MARCADOS E SOFRIDOS #######################################################################
 #Matrizes de golos marcados e sofridos previstos para cada iteração (1 cadeia)
 
@@ -284,7 +328,9 @@ for(team in 1:18){
   }
 }  
 
-############################################## GRÁFICO DE GOLOS OBSERVADOS E QUANTIS DE 95% PARA OS PREVISTOS (FIGURA 6.5) #################################################
+
+############################################################################################################################################################################
+############################################## GRÁFICO DE GOLOS OBSERVADOS E QUANTIS DE 95% PARA OS PREVISTOS (FIGURA 6.6) #################################################
 
 med_scored<-matrix(0,18,1) #Mediana dos golos marcados previstos
 med_conceded<-matrix(0,18,1) #Mediana dos golos sofridos previstos
@@ -324,7 +370,8 @@ ggplot(NULL, aes(x = Equipas, y = Golos)) + geom_linerange(data = data1, aes(ymi
   geom_pointrange(data = data1, mapping = aes(x = Equipas,y=Golos, ymin = Infe, ymax = Sup), size = 0.7, col = "blue", shape = 22, fill = "blue")+
   geom_point(data=data2,col="yellow",size=3) + scale_x_discrete(guide = guide_axis(angle = 45)) + scale_y_continuous(limits = c(0, 120), breaks = seq(0, 120, 20)) +
   labs(x="Equipa",y="Golos marcados")+ggtitle("Golos observados e quantis de 95% para golos previstos, por equipa") + tema
-  
+
+
 ############################################################################################################################################################################
 #Usado para calcular as probabilidades de vitoria, derrota e empate (trabalhar com cadeia 1)
 
