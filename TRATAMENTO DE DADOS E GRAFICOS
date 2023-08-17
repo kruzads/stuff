@@ -14,76 +14,18 @@ library(sysfonts)
 library(showtext)
 
 
+liga14_20 <- read_excel("C:/Users/danie/Ambiente de Trabalho/Fuck OneDrive/liga14-20.xlsx") #localizaçao do ficheiro
+liga14_20<-liga14_20[1:306,] #apenas 1 temporada em uso
 
 #Estes exemplos são apenas para o modelo de Poisson Dupla
-
-
-#############################################################################################################################################################################
-################################# GRÁFICO PARA COMPARAR GOLOS MARCADOS EM CASA E FORA COM OS ESPERADOS PARA UMA DISTRIBUIÇÃO POISSON (FIGURA 2.1) ###########################
-
-#CASA
-probs_h<-dpois(0:6,mean(liga14_20$y_g1)) 
-esperado_h<-306*probs_h
-
-#FORA
-probs_a<-dpois(0:6,mean(liga14_20$y_g2)) 
-esperado_a<-306*probs_a
-
-a<- as.data.frame(table(factor(liga14_20$y_g1, levels=0:max(liga14_20$y_g1,liga14_20$y_g2))))
-b<- as.data.frame(table(factor(liga14_20$y_g2, levels=0:max(liga14_20$y_g1,liga14_20$y_g2))))
-
-golos <- 0:max(liga14_20$y_g1,liga14_20$y_g2)
-Casa<-a$Freq
-Fora<-b$Freq
-df1 <- data.frame(Casa, Fora, golos)
-df2 <- melt(df1, id.vars='golos') #DATAFRAME COM OS GOLOS MARCADOS, O LOCAL E A FREQUÊNCIA RELATIVA
-
-cor<-c(rep("green",7),rep("blue",7))
-df3<-data.frame(df2,c(esperado_h,esperado_a),cor)
-colnames(df3)[4]<-"pontos.Esperado"
-
-df3$value<-df3$value/306
-df3$pontos.Esperado<-c(probs_a,probs_h)
-
-ggplot(df3, aes(x=golos, y=value, fill=variable)) + geom_bar(stat='identity', position='dodge',colour="Black") + 
-  scale_x_continuous(labels=as.character(golos),breaks=golos) + 
-  labs(x="Golos por Jogo", y="Frequência Relativa") +
-  scale_y_continuous(breaks = seq(from = 0, to = 1, by = 0.05), limits = c(0,0.4))+
-  geom_point(data = df3,aes(y=pontos.Esperado,col=cor),size=3) + 
-  geom_line(data=df3,aes(x=golos,y=pontos.Esperado,col=cor),size=1.5) +
-  scale_fill_manual("Equipa", values = c("Casa" = "light green", "Fora" = "light blue"))+
-  scale_colour_manual(values = c("green" = "dark green", "blue" = "dark blue"), name = "cor") + tema
-
-
-
-#############################################################################################################################################################################
-######## GRÁFICOS DE VARIAÇÃO DOS PARÂMETROS ATT E DEF DA EQUIPA 1 E DO PARÂMETRO HOME POR ITERAÇÃO E GRÁFICOS DE DENSIDADE DE PROBABILIDADE DOS MESMOS (FIGURA 6.1) ########
-
-MCMCtrace(nimbleMCMC_fut$samples, params = c('home',"att[1]","def[1]"), ISB = FALSE, exact = TRUE, pdf = FALSE, lwd_den = 3, lty_pr = 2,
-          sz_txt = 1.3, sz_ax = 2, sz_ax_txt = 1.2, sz_tick_txt = 1.2, sz_main_txt = 1.3)
-
-#############################################################################################################################################################################
-############################################## RESUMO DAS CARACTERÍSTICAS DOS PARÂMETROS PARA AS EQUIPAS 4, 9 E 13 (FIGURA 6.2) #############################################
-
-MCMCsummary(nimbleMCMC_fut$samples, params = c("home","att[4]","def[4]","att[9]","def[9]","att[13]","def[13]"), round=4, ISB = FALSE, exact = TRUE)
-
-#############################################################################################################################################################################
-####################################### INTERVALOS DE 95% DE CREDIBILIDADE DE CAUDAS IGUAIS PARA OS PARÂMETROS ATT E DEF (FIGURA 6.4) #######################################
-
-index<-1:18
-lista_equipas <- c("Académica","Arouca","Belenenses","Benfica","Boavista","Braga","Estoril","FC Porto", "Gil Vicente","Marítimo","Moreirense","Nacional",
-                   "Paços Ferreira","Penafiel","Rio Ave", "Sporting","Vitória FC","Vitória SC")
-
-MCMCplot(nimbleMCMC_fut$samples, params = 'att', labels = paste(index,": ",lista_equipas,sep="" ), main="Intervalos de 95% de credibilidade de caudas iguais",  
-         xlab = "Parâmetro de ataque", rank=TRUE, guide_lines = TRUE, horiz = FALSE)
-MCMCplot(nimbleMCMC_fut$samples, params = 'def', labels = paste(index,": ",lista_equipas,sep="" ), main="Intervalos de 95% de credibilidade de caudas iguais",  
-         xlab = "Parâmetro de defesa", rank=TRUE, guide_lines = TRUE, horiz = FALSE)
-         
+#Obter a tabela de dados para análise
 
 
 #############################################################################################################################################################################
 ############################################################################  DISTRIBUIÇÃO PREDITIVA ########################################################################
-       
+
+#Depois de compilado o modelo de poisson dupla correr isto em sequência
+
 #PARA MULTIPLAS CADEIAS
 
 n<-dim(nimbleMCMC_fut[[1]]$chain1)[1] #igual numero de valores simulados para todas as cadeias, 5000 neste caso
@@ -111,21 +53,6 @@ for(game in 1:306){
 y.pred1<-array(c(y.pred1.chain1,y.pred1.chain2,y.pred1.chain3),c(306,5000,3))
 y.pred2<-array(c(y.pred2.chain1,y.pred2.chain2,y.pred2.chain3),c(306,5000,3))         
 
-#############################################################################################################################################################################
-################################################################## PREDICTIVE POSTERIOR CHECK (FIGURA 6.7) ##################################################################
-  
-library(bayesplot)
-
-data2<-t(y.pred1[,2000:2500,1]-y.pred2[,2000:2500,1])
-
-color_scheme_set("brightblue")
-#GRÁFICOS DE BARRAS PARA AS FREQUENCIAS RELATIVAS DAS DIFERENÇAS DE GOLOS E RESULTADOS
-ppc_bars(liga14_20$y_g1 - liga14_20$y_g2, data2, freq = FALSE) +  yaxis_text() + scale_y_continuous(breaks = seq(0, 1, 0.05), expand = c(0, 0), limits = c(0, 0.31)) +
-  scale_x_continuous(breaks = seq(-15,15, 1),limits = c(-8, 8)) + labs(x = "Diferença de golos", y = "Dens. Preditiva Posteriori") + tema
-
-tema <- theme(legend.title = element_text(colour = "steelblue", face = "bold", family = "open"),
-              axis.title = element_text(family = "open", size = (15), colour = "steelblue4", face = "bold"),
-              axis.text = element_text(family = "open", colour = "black", size = (15),), legend.position = c(0.9, 0.8),legend.key.size = unit(1, 'cm'))
 
 #############################################################################################################################################################################
 ############################################################################# TRATAMENTO DE DADOS ###########################################################################
@@ -152,7 +79,7 @@ for(game in 1:306){
   }
 }
 
-#contadores de resultados para cada temporada simulada
+#Contadores de resultados de cada equipa para cada temporada simulada
 wins_tab<-matrix(0,18,n)
 ties_tab<-matrix(0,18,n)
 losses_tab<-matrix(34,18,n)
@@ -287,7 +214,51 @@ ggplot(data=df_gg, aes(x=equipa,y=perc))+geom_bar(stat = "identity",fill="red",c
        
 
 #########################################################################################################################################################################             
-####################################################################### GOLOS MARCADOS E SOFRIDOS #######################################################################
+########################################################################### DADOS OBSERVADOS ############################################################################
+
+pontos_fim<-matrix(0,18,1) #Pontos observados
+vitorias<-matrix(0,18,1)   #Vitorias observadas
+empates<-matrix(0,18,1)    #Empates observados
+derrotas<-matrix(34,18,1)  #Derrotas observadas
+
+for(game in 1:306){
+  for(team in 1:18){
+      if(team == liga14_20$h_g[game]){
+        vitorias[team]<-vitorias[team]+liga14_20$Vitoria_casa[game]
+        empates[team]<-empates[team]+liga14_20$Empate[game]
+        pontos_fim[team] <- pontos_fim[team] + 3*liga14_20$Vitoria_casa[game] + liga14_20$Empate[game]
+      }
+      if(team == liga14_20$a_g[game]){
+        vitorias[team]<-vitorias[team]+liga14_20$Vitoria_fora[game]
+        empates[team]<-empates[team]+liga14_20$Empate[game]
+        pontos_fim[team] <-  pontos_fim[team] + liga14_20$Empate[game] + 3*liga14_20$Vitoria_fora[game]
+    }
+  }
+}
+
+derrotas<-derrotas-vitorias-empates
+
+scored_obs<-matrix(0,18,1)    #golos marcados observados
+conceded_obs<-matrix(0,18,1)  #golos sofridos observados
+
+for(team in 1:18){
+  for(game in 1:306){
+    if(team == liga14_20$h_g[game]){
+      scored_obs[team]<-scored_obs[team] + liga14_20$y_g1[game]
+      conceded_obs[team]<-conceded_obs[team] + liga14_20$y_g2[game]
+    }
+    if(team == liga14_20$a_g[game]){
+      scored_obs[team]<-scored_obs[team] + liga14_20$y_g2[game]
+      conceded_obs[team]<-conceded_obs[team] + liga14_20$y_g1[game]
+    }
+  }
+}  
+
+
+
+#########################################################################################################################################################################             
+############################################################################ GOLOS PREVISTOS ############################################################################
+
 #Matrizes de golos marcados e sofridos previstos para cada iteração (1 cadeia)
 
 scored_prev<-matrix(0,18,n)
@@ -308,27 +279,6 @@ for(iter in 1:n){
   }  
 } 
 
-#Golos marcacos e sofridos observados
-scored_obs<-matrix(0,18,1)    #golos marcados observados
-conceded_obs<-matrix(0,18,1)  #golos sofridos observados
-
-for(team in 1:18){
-  for(game in 1:306){
-    if(team == liga14_20$h_g[game]){
-      scored_obs[team]<-scored_obs[team] + liga14_20$y_g1[game]
-      conceded_obs[team]<-conceded_obs[team] + liga14_20$y_g2[game]
-    }
-    if(team == liga14_20$a_g[game]){
-      scored_obs[team]<-scored_obs[team] + liga14_20$y_g2[game]
-      conceded_obs[team]<-conceded_obs[team] + liga14_20$y_g1[game]
-    }
-  }
-}  
-
-
-############################################################################################################################################################################
-############################################## GRÁFICO DE GOLOS OBSERVADOS E QUANTIS DE 95% PARA OS PREVISTOS (FIGURA 6.6) #################################################
-
 med_scored<-matrix(0,18,1) #Mediana dos golos marcados previstos
 med_conceded<-matrix(0,18,1) #Mediana dos golos sofridos previstos
 quantis_scored<-matrix(0,18,2) #Quantis de 5% e 95% para os golos marcados
@@ -340,6 +290,153 @@ for(team in 1:18){
   med_conceded[team]<-median(conceded_prev[team,])
   quantis_conceded[team,]<-unname(quantile(conceded_prev[team,],c(0.05,0.95)))
 }
+
+
+#########################################################################################################################################################################             
+############################################################################## TABELA FINAL #############################################################################
+
+points_df <- as.data.frame(t(points_team_new[,,1]))
+placements_df <- as.data.frame(t(placements_during[,34,]))
+
+lista_equipas <- c("Académica","Arouca","Belenenses","Benfica","Boavista","Braga","Estoril","FC Porto",
+                   "Gil Vicente","Marítimo","Moreirense","Nacional","Paços Ferreira","Penafiel","Rio Ave",
+                   "Sporting","Vitória FC","Vitória SC")
+
+colnames(points_df)<-c(lista_equipas)
+wins_df<-as.data.frame(t(wins_tab[,]))
+ties_df<-as.data.frame(t(ties_tab[,]))
+losses_df<-as.data.frame(t(losses_tab[,]))
+
+team_table_excel<-data.frame()
+for(team in 1:18){
+  team_table_excel[team,1]<-colnames(points_df)[team]
+  team_table_excel[team,2]<-placements_obs[team]
+  team_table_excel[team,3]<-median(placements_during[team,34,])
+  team_table_excel[team,4]<-pontos_fim[,1][team]
+  team_table_excel[team,5]<-quantile(points_df[,team],0.5)
+  team_table_excel[team,6]<-vitorias[team]
+  team_table_excel[team,7]<-median(wins_df[,team])
+  team_table_excel[team,8]<-empates[team]
+  team_table_excel[team,9]<-median(ties_df[,team])
+  team_table_excel[team,10]<-derrotas[team]
+  team_table_excel[team,11]<-median(losses_df[,team])
+  team_table_excel[team,12]<-scored_obs[team]
+  team_table_excel[team,13]<-med_scored[team]
+  team_table_excel[team,14]<-conceded_obs[team]
+  team_table_excel[team,15]<-med_conceded[team]
+  team_table_excel[team,16]<-scored_obs[team]-conceded_obs[team]
+  team_table_excel[team,17]<-med_scored[team]-med_conceded[team]
+}
+
+
+
+############################################################################## GRAFICOS ADICIONAIS ##########################################################################
+#############################################################################################################################################################################
+################################# GRÁFICO PARA COMPARAR GOLOS MARCADOS EM CASA E FORA COM OS ESPERADOS PARA UMA DISTRIBUIÇÃO POISSON (FIGURA 2.1) ###########################
+
+#CASA
+probs_h<-dpois(0:6,mean(liga14_20$y_g1)) 
+esperado_h<-306*probs_h
+
+#FORA
+probs_a<-dpois(0:6,mean(liga14_20$y_g2)) 
+esperado_a<-306*probs_a
+
+a<- as.data.frame(table(factor(liga14_20$y_g1, levels=0:max(liga14_20$y_g1,liga14_20$y_g2))))
+b<- as.data.frame(table(factor(liga14_20$y_g2, levels=0:max(liga14_20$y_g1,liga14_20$y_g2))))
+
+golos <- 0:max(liga14_20$y_g1,liga14_20$y_g2)
+Casa<-a$Freq
+Fora<-b$Freq
+df1 <- data.frame(Casa, Fora, golos)
+df2 <- melt(df1, id.vars='golos') #DATAFRAME COM OS GOLOS MARCADOS, O LOCAL E A FREQUÊNCIA RELATIVA
+
+cor<-c(rep("green",7),rep("blue",7))
+df3<-data.frame(df2,c(esperado_h,esperado_a),cor)
+colnames(df3)[4]<-"pontos.Esperado"
+
+df3$value<-df3$value/306
+df3$pontos.Esperado<-c(probs_a,probs_h)
+
+ggplot(df3, aes(x=golos, y=value, fill=variable)) + geom_bar(stat='identity', position='dodge',colour="Black") + 
+  scale_x_continuous(labels=as.character(golos),breaks=golos) + 
+  labs(x="Golos por Jogo", y="Frequência Relativa") +
+  scale_y_continuous(breaks = seq(from = 0, to = 1, by = 0.05), limits = c(0,0.4))+
+  geom_point(data = df3,aes(y=pontos.Esperado,col=cor),size=3) + 
+  geom_line(data=df3,aes(x=golos,y=pontos.Esperado,col=cor),size=1.5) +
+  scale_fill_manual("Equipa", values = c("Casa" = "light green", "Fora" = "light blue"))+
+  scale_colour_manual(values = c("green" = "dark green", "blue" = "dark blue"), name = "cor") + tema
+
+
+
+#############################################################################################################################################################################
+######## GRÁFICOS DE VARIAÇÃO DOS PARÂMETROS ATT E DEF DA EQUIPA 1 E DO PARÂMETRO HOME POR ITERAÇÃO E GRÁFICOS DE DENSIDADE DE PROBABILIDADE DOS MESMOS (FIGURA 6.1) ########
+
+MCMCtrace(nimbleMCMC_fut$samples, params = c('home',"att[1]","def[1]"), ISB = FALSE, exact = TRUE, pdf = FALSE, lwd_den = 3, lty_pr = 2,
+          sz_txt = 1.3, sz_ax = 2, sz_ax_txt = 1.2, sz_tick_txt = 1.2, sz_main_txt = 1.3)
+
+#############################################################################################################################################################################
+############################################## RESUMO DAS CARACTERÍSTICAS DOS PARÂMETROS PARA AS EQUIPAS 4, 9 E 13 (FIGURA 6.2) #############################################
+
+MCMCsummary(nimbleMCMC_fut$samples, params = c("home","att[4]","def[4]","att[9]","def[9]","att[13]","def[13]"), round=4, ISB = FALSE, exact = TRUE)
+
+#############################################################################################################################################################################
+####################################### INTERVALOS DE 95% DE CREDIBILIDADE DE CAUDAS IGUAIS PARA OS PARÂMETROS ATT E DEF (FIGURA 6.4) #######################################
+
+index<-1:18
+lista_equipas <- c("Académica","Arouca","Belenenses","Benfica","Boavista","Braga","Estoril","FC Porto", "Gil Vicente","Marítimo","Moreirense","Nacional",
+                   "Paços Ferreira","Penafiel","Rio Ave", "Sporting","Vitória FC","Vitória SC")
+
+MCMCplot(nimbleMCMC_fut$samples, params = 'att', labels = paste(index,": ",lista_equipas,sep="" ), main="Intervalos de 95% de credibilidade de caudas iguais",  
+         xlab = "Parâmetro de ataque", rank=TRUE, guide_lines = TRUE, horiz = FALSE)
+MCMCplot(nimbleMCMC_fut$samples, params = 'def', labels = paste(index,": ",lista_equipas,sep="" ), main="Intervalos de 95% de credibilidade de caudas iguais",  
+         xlab = "Parâmetro de defesa", rank=TRUE, guide_lines = TRUE, horiz = FALSE)
+         
+
+#############################################################################################################################################################################
+################################################################## PREDICTIVE POSTERIOR CHECK (FIGURA 6.7) ##################################################################
+  
+library(bayesplot)
+
+data2<-t(y.pred1[,2000:2500,1]-y.pred2[,2000:2500,1])
+
+color_scheme_set("brightblue")
+#GRÁFICOS DE BARRAS PARA AS FREQUENCIAS RELATIVAS DAS DIFERENÇAS DE GOLOS E RESULTADOS
+ppc_bars(liga14_20$y_g1 - liga14_20$y_g2, data2, freq = FALSE) +  yaxis_text() + scale_y_continuous(breaks = seq(0, 1, 0.05), expand = c(0, 0), limits = c(0, 0.31)) +
+  scale_x_continuous(breaks = seq(-15,15, 1),limits = c(-8, 8)) + labs(x = "Diferença de golos", y = "Dens. Preditiva Posteriori") + tema
+
+tema <- theme(legend.title = element_text(colour = "steelblue", face = "bold", family = "open"),
+              axis.title = element_text(family = "open", size = (15), colour = "steelblue4", face = "bold"),
+              axis.text = element_text(family = "open", colour = "black", size = (15),), legend.position = c(0.9, 0.8),legend.key.size = unit(1, 'cm'))
+
+
+
+#############################################################################################################################################################################
+######################################################### Probabilidades médias esperadas para cada resultado para cada jogo ################################################
+#usado para o calculo do brier score/medida de finetti
+
+#diferença de golos(casa - fora)
+pred.diff<-matrix(0,306,n) 
+pred.diff<-y.pred1.chain1-y.pred2.chain1
+
+
+prob_vict_casa<-matrix(0,306,1)
+prob_vict_fora<-matrix(0,306,1)
+prob_empate<-matrix(0,306,1)
+
+for(game in 1:306){
+  prob_vict_casa[game]<-sum(pred.diff[game,] > 0)/n
+  prob_vict_fora[game]<-sum(pred.diff[game,] < 0)/n
+  prob_empate[game]<-sum(pred.diff[game,] == 0)/n
+}
+
+#BRIER SCORE
+brier_score<-sum( (prob_vict_casa - liga14_20$Vitoria_casa)^2 + (prob_vict_fora - liga14_20$Vitoria_fora)^2 + 
+            (prob_empate - liga14_20$Empate)^2 )/nrow(prob_vict_casa)
+
+
+############################################################################################################################################################################
+############################################## GRÁFICO DE GOLOS OBSERVADOS E QUANTIS DE 95% PARA OS PREVISTOS (FIGURA 6.6) #################################################
 
 
 data2<-data.frame(scored_obs,lista_equipas)
@@ -367,30 +464,4 @@ ggplot(NULL, aes(x = Equipas, y = Golos)) + geom_linerange(data = data1, aes(ymi
   geom_pointrange(data = data1, mapping = aes(x = Equipas,y=Golos, ymin = Infe, ymax = Sup), size = 0.7, col = "blue", shape = 22, fill = "blue")+
   geom_point(data=data2,col="yellow",size=3) + scale_x_discrete(guide = guide_axis(angle = 45)) + scale_y_continuous(limits = c(0, 120), breaks = seq(0, 120, 20)) +
   labs(x="Equipa",y="Golos marcados")+ggtitle("Golos observados e quantis de 95% para golos previstos, por equipa") + tema
-
-
-############################################################################################################################################################################
-#Usado para calcular as probabilidades de vitoria, derrota e empate (trabalhar com cadeia 1)
-
-#diferença de golos(casa - fora)
-pred.diff<-matrix(0,306,n) 
-pred.diff<-y.pred1.chain1-y.pred2.chain1
-
-
-prob_vict_casa<-matrix(0,306,1) #Probabilidade de vitória da equipa de casa para cada jogo
-prob_vict_fora<-matrix(0,306,1) #Probabilidade de vitória da equipa de fora para cada jogo
-prob_empate<-matrix(0,306,1) #Probabilidade de empate  para cada jogo
-
-for(game in 1:306){
-  prob_vict_casa[game]<-sum(pred.diff[game,] > 0)/n
-  prob_vict_fora[game]<-sum(pred.diff[game,] < 0)/n
-  prob_empate[game]<-sum(pred.diff[game,] == 0)/n
-}
-
-
-
-#DE FINETTI SCORE / BRIER SCORE
-brier_score <- sum( (prob_vict_casa - liga14_20$Vitoria_casa)^2 + (prob_vict_fora - liga14_20$Vitoria_fora)^2 + (prob_empate - liga14_20$Empate)^2 )/nrow(prob_vict_casa)
-
-
 
